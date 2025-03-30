@@ -209,15 +209,15 @@
 
       async function loadData() {
           try {
-              let response = await fetch('http://localhost:5000/standings');
+              let response = await fetch('https://mlb-project.onrender.com');
               standings = await response.json();
               if (standings.error) {
                   document.getElementById('result').innerText = "無法載入數據，請稍後再試。";
                   return;
               }
-              response = await fetch('/static/battingRank.json');
+              response = await fetch('https://mlb-project.onrender.com/static/battingRank.json');
               battingRank = await response.json();
-              response = await fetch('/static/pitchingRank.json');
+              response = await fetch('https://mlb-project.onrender.com/static/pitchingRank.json');
               pitchingRank = await response.json();
               
               computeBattingWeights();
