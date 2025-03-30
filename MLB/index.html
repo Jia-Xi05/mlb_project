@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MLB 勝負預測（含主場加權與Logo）</title>
+  <style>
+      body {
+          font-family: Arial, sans-serif;
+          background-color: #f0f2f5;
+          margin: 0;
+          padding: 20px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          position: relative;
+          overflow-x: hidden;
+      }
+      h1 {
+          color: #333;
+      }
+      .container {
+          background: white;
+          padding: 20px;
+          border-radius: 10px;
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+          width: 90%;
+          max-width: 600px;
+          text-align: center;
+          z-index: 1;
+          position: relative;
+      }
+      .team-select {
+          margin: 15px 0;
+      }
+      label {
+          font-weight: bold;
+          margin-right: 10px;
+      }
+      select {
+          padding: 8px;
+          font-size: 16px;
+          border-radius: 5px;
+          border: 1px solid #ccc;
+      }
+      button {
+          margin-top: 20px;
+          padding: 10px 20px;
+          background-color: #007BFF;
+          color: white;
+          border: none;
+          border-radius: 5px;
+          cursor: pointer;
+          font-size: 16px;
+          transition: background 0.3s;
+      }
+      button:hover {
+          background-color: #0056b3;
+      }
+      .result {
+          margin-top: 20px;
+          padding: 20px;
+          background: #fff;
+          border-radius: 10px;
+          box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      }
+      .team-data {
+          text-align: left;
+          margin-top: 15px;
+          padding: 15px;
+          border-radius: 8px;
+          background: #f9f9f9;
+      }
+      /* Logo 樣式 */
+      .logo-container {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        width: 25%; /* 縮小 Logo，避免過大影響畫面 */
+        background-size: contain;
+        background-position: center;
+        background-repeat: no-repeat;
+        z-index: 0;
+        opacity: 0; /* 預設隱藏 */
+        transition: opacity 1s ease-in-out; /* 讓 Logo 緩慢浮出 */
+        filter: brightness(0.8) contrast(1.2) opacity(0.7); /* 增加透明度 */
+    }
+    .logo-home {
+        left: 0;
+        background-position: center left;
+    }
+    .logo-away {
+        right: 0;
+        background-position: center right;
+    }
+    /* 手機版 RWD */
+    @media (max-width: 600px) {
+        .logo-container {
+            position: absolute;
+            top: 10%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%; /* 調整 Logo 大小 */
+            max-width: 200px;
+            opacity: 0.3; /* 降低透明度，避免干擾閱讀 */
+            z-index: -1; /* 放在背景層 */
+            background-size: 80%; /* 讓 Logo 更適合小螢幕 */
+        }
+        .logo-home {
+            background-position: center top;
+        }
+        .logo-away {
+            display: none; /* 隱藏客場隊伍 Logo，確保畫面簡潔 */
+        }
+    }
+
+  </style>
+</head>
+<body>
+  <h1>MLB 勝負預測</h1>
+  <div class="container">
+      <div class="team-select">
+          <label for="teamA">主場隊伍：</label>
+          <select id="teamA" onchange="showLogo('home')"></select>
+      </div>
+      <div class="team-select">
+          <label for="teamB">客場隊伍：</label>
+          <select id="teamB" onchange="showLogo('away')"></select>
+      </div>
+      <button onclick="predictWinner()">預測勝負</button>
+      <div class="result" id="result"></div>
+  </div>
+  <!-- Logo 容器 -->
+  <div id="logo-home" class="logo-container logo-home"></div>
+  <div id="logo-away" class="logo-container logo-away"></div>
+  <script>
+      let standings = {};
+      let battingRank = [];
+      let pitchingRank = [];
+      let battingWeights = {};
+      let pitchingWeights = {};
+      const teamTranslations = {
+          "Arizona Diamondbacks": "亞利桑那響尾蛇",
+          "Oakland Athletics": "運動家",
+          "Athletics": "運動家",
+          "Atlanta Braves": "亞特蘭大勇士",
+          "Baltimore Orioles": "巴爾的摩金鶯",
+          "Boston Red Sox": "波士頓紅襪",
+          "Chicago White Sox": "芝加哥白襪",
+          "Chicago Cubs": "芝加哥小熊",
+          "Cincinnati Reds": "辛辛那提紅人",
+          "Cleveland Guardians": "克里夫蘭守護者",
+          "Colorado Rockies": "科羅拉多落磯",
+          "Detroit Tigers": "底特律老虎",
+          "Houston Astros": "休士頓太空人",
+          "Kansas City Royals": "堪薩斯城皇家",
+          "Los Angeles Angels": "洛杉磯天使",
+          "Los Angeles Dodgers": "洛杉磯道奇",
+          "Miami Marlins": "邁阿密馬林魚",
+          "Milwaukee Brewers": "密爾瓦基釀酒人",
+          "Minnesota Twins": "明尼蘇達雙城",
+          "New York Yankees": "紐約洋基",
+          "New York Mets": "紐約大都會",
+          "Philadelphia Phillies": "費城費城人",
+          "Pittsburgh Pirates": "匹茲堡海盜",
+          "San Diego Padres": "聖地牙哥教士",
+          "San Francisco Giants": "舊金山巨人",
+          "Seattle Mariners": "西雅圖水手",
+          "St. Louis Cardinals": "聖路易紅雀",
+          "Tampa Bay Rays": "坦帕灣光芒",
+          "Texas Rangers": "德州遊騎兵",
+          "Toronto Blue Jays": "多倫多藍鳥",
+          "Washington Nationals": "華盛頓國民"
+      };
+
+      const teamLogos = {
+          "Arizona Diamondbacks": "/static/logos/arizona_diamondbacks.png",
+          "Oakland Athletics": "/static/logos/oakland_athletics.png",
+          "Athletics": "/static/logos/oakland_athletics.png",
+          "Atlanta Braves": "/static/logos/atlanta_braves.png",
+          "Baltimore Orioles": "/static/logos/baltimore_orioles.png",
+          "Boston Red Sox": "/static/logos/boston_red_sox.png",
+          "Chicago White Sox": "/static/logos/chicago_white_sox.png",
+          "Chicago Cubs": "/static/logos/chicago_cubs.png",
+          "Cincinnati Reds": "/static/logos/cincinnati_reds.png",
+          "Cleveland Guardians": "/static/logos/cleveland_guardians.png",
+          "Colorado Rockies": "/static/logos/colorado_rockies.png",
+          "Detroit Tigers": "/static/logos/detroit_tigers.png",
+          "Houston Astros": "/static/logos/houston_astros.png",
+          "Kansas City Royals": "/static/logos/kansas_city_royals.png",
+          "Los Angeles Angels": "/static/logos/los_angeles_angels.png",
+          "Los Angeles Dodgers": "/static/logos/los_angeles_dodgers.png",
+          "Miami Marlins": "/static/logos/miami_marlins.png",
+          "Milwaukee Brewers": "/static/logos/milwaukee_brewers.png",
+          "Minnesota Twins": "/static/logos/minnesota_twins.png",
+          "New York Yankees": "/static/logos/new_york_yankees.png",
+          "New York Mets": "/static/logos/new_york_mets.png",
+          "Philadelphia Phillies": "/static/logos/philadelphia_phillies.png",
+          "Pittsburgh Pirates": "/static/logos/pittsburgh_pirates.png",
+          "San Diego Padres": "/static/logos/san_diego_padres.png",
+          "San Francisco Giants": "/static/logos/san_francisco_giants.png",
+          "Seattle Mariners": "/static/logos/seattle_mariners.png",
+          "St. Louis Cardinals": "/static/logos/st_louis_cardinals.png",
+          "Tampa Bay Rays": "/static/logos/tampa_bay_rays.png",
+          "Texas Rangers": "/static/logos/texas_rangers.png",
+          "Toronto Blue Jays": "/static/logos/toronto_blue_jays.png",
+          "Washington Nationals": "/static/logos/washington_nationals.png"
+      };
+
+      async function loadData() {
+          try {
+              let response = await fetch('http://localhost:5000/standings');
+              standings = await response.json();
+              if (standings.error) {
+                  document.getElementById('result').innerText = "無法載入數據，請稍後再試。";
+                  return;
+              }
+              response = await fetch('/static/battingRank.json');
+              battingRank = await response.json();
+              response = await fetch('/static/pitchingRank.json');
+              pitchingRank = await response.json();
+              
+              computeBattingWeights();
+              computePitchingWeights();
+              populateTeamSelects();
+          } catch (error) {
+              console.error("資料載入失敗：", error);
+              document.getElementById('result').innerText = "無法連接到後端服務。";
+          }
+      }
+      
+      function computeBattingWeights() {
+          const total = battingRank.length;
+          battingRank.forEach(item => {
+              battingWeights[item.team] = (total - item.rank + 1) / total;
+          });
+      }
+      
+      function computePitchingWeights() {
+          const total = pitchingRank.length;
+          pitchingRank.forEach(item => {
+              pitchingWeights[item.team] = (total - item.rank + 1) / total;
+          });
+      }
+      
+      function populateTeamSelects() {
+          const teamASelect = document.getElementById('teamA');
+          const teamBSelect = document.getElementById('teamB');
+          for (const team in standings) {
+              const chineseName = teamTranslations[team] || team;
+              teamASelect.add(new Option(chineseName, team));
+              teamBSelect.add(new Option(chineseName, team));
+          }
+      }
+      
+      // 顯示 Logo 並確保透明度正確
+      function showLogo(type) {
+        const teamA = document.getElementById('teamA').value;
+        const teamB = document.getElementById('teamB').value;
+        const homeLogo = document.getElementById('logo-home');
+        const awayLogo = document.getElementById('logo-away');
+
+        if (type === 'home' && teamA) {
+            homeLogo.style.transition = "none";  // 先關閉 transition，讓 opacity 變化生效
+            homeLogo.style.opacity = "0";  // 讓 Logo 消失
+
+            setTimeout(() => {
+                homeLogo.style.backgroundImage = `url('${teamLogos[teamA]}')`;
+                homeLogo.style.transition = "opacity 1s ease-in-out";  // 重新啟用 transition
+                homeLogo.style.opacity = "1";  // 讓 Logo 浮現
+            }, 50); // 短暫延遲，確保 opacity 變化能被偵測到
+        }
+
+        if (type === 'away' && teamB) {
+            awayLogo.style.transition = "none";
+            awayLogo.style.opacity = "0";
+
+            setTimeout(() => {
+                awayLogo.style.backgroundImage = `url('${teamLogos[teamB]}')`;
+                awayLogo.style.transition = "opacity 1s ease-in-out";
+                awayLogo.style.opacity = "1";
+            }, 50);
+        }
+    }
+
+
+      
+    function predictWinner() {
+        const teamA = document.getElementById('teamA').value;
+        const teamB = document.getElementById('teamB').value;
+        if (teamA === teamB) {
+            document.getElementById('result').innerText = "請選擇兩支不同隊伍！";
+            return;
+        }
+        
+        const dataA = standings[teamA];
+        const dataB = standings[teamB];
+        
+        // 解析主場 & 客場戰績
+        const [homeWins, homeLosses] = dataA.Home.split('-').map(Number);
+        const [awayWins, awayLosses] = dataB.Away.split('-').map(Number);
+        
+        const homeWinRate = homeWins / (homeWins + homeLosses);
+        const awayWinRate = awayWins / (awayWins + awayLosses);
+        
+        // 計算基礎勝率
+        const baseScoreA = calculateBaseScore(dataA);
+        const baseScoreB = calculateBaseScore(dataB);
+
+        // 取得打擊 & 投手權重
+        const batWeightA = battingWeights[teamA] || 0;
+        const pitchWeightA = pitchingWeights[teamA] || 0;
+        const batWeightB = battingWeights[teamB] || 0;
+        const pitchWeightB = pitchingWeights[teamB] || 0;
+
+        // 綜合權重
+        const combinedWeightA = (batWeightA + pitchWeightA) / 2;
+        const combinedWeightB = (batWeightB + pitchWeightB) / 2;
+
+        // **調整主場優勢**
+        const baseHomeAdvantage = 0.05; // 基礎主場優勢
+        const homeAdvantage = baseHomeAdvantage + (homeWinRate - 0.5) * 0.1; // 若主場勝率高，增加主場優勢
+        const awayPenalty = (0.5 - awayWinRate) * 0.1; // 若客場勝率低，減少預測勝率
+
+        // 計算最終分數
+        const finalScoreA = baseScoreA + (combinedWeightA * 0.1) + homeAdvantage;
+        const finalScoreB = baseScoreB + (combinedWeightB * 0.1) - awayPenalty;
+
+        // 預測結果
+        const prediction = finalScoreA > finalScoreB 
+            ? `${teamTranslations[teamA] || teamA} 預測獲勝（主場優勢）` 
+            : finalScoreB > finalScoreA 
+                ? `${teamTranslations[teamB] || teamB} 預測獲勝` 
+                : "平手";
+
+        // 顯示結果
+        document.getElementById('result').innerHTML = `
+            <div class="team-data">
+                <h3>${teamTranslations[teamA] || teamA}（主場）數據</h3>
+                <p>勝場/敗場：${dataA.W}-${dataA.L}</p>
+                <p>勝率：${dataA.PCT}</p>
+                <p>主場戰績：${dataA.Home}（勝率 ${(homeWinRate * 100).toFixed(1)}%）</p>
+                <p>打擊權重：${(batWeightA*100).toFixed(0)}%</p>
+                <p>投手權重：${(pitchWeightA*100).toFixed(0)}%</p>
+                <p>綜合權重：${(combinedWeightA*100).toFixed(0)}%</p>
+                <p>主場加成：${(homeAdvantage * 100).toFixed(1)}%</p>
+                <p>調整後分數：${finalScoreA.toFixed(2)}</p>
+            </div>
+            <div class="team-data">
+                <h3>${teamTranslations[teamB] || teamB}（客場）數據</h3>
+                <p>勝場/敗場：${dataB.W}-${dataB.L}</p>
+                <p>勝率：${dataB.PCT}</p>
+                <p>客場戰績：${dataB.Away}（勝率 ${(awayWinRate * 100).toFixed(1)}%）</p>
+                <p>打擊權重：${(batWeightB*100).toFixed(0)}%</p>
+                <p>投手權重：${(pitchWeightB*100).toFixed(0)}%</p>
+                <p>綜合權重：${(combinedWeightB*100).toFixed(0)}%</p>
+                <p>客場劣勢影響：-${(awayPenalty * 100).toFixed(1)}%</p>
+                <p>調整後分數：${finalScoreB.toFixed(2)}</p>
+            </div>
+            <p><strong>預測結果：</strong>${prediction}</p>
+        `;
+    }
+
+      
+      function calculateBaseScore(data) {
+          const pct = data.PCT || 0;
+          return 0.5 * pct;
+      }
+      
+      loadData();
+  </script>
+</body>
+</html>
