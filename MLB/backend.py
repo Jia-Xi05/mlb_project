@@ -34,6 +34,10 @@ def fetch_mlb_standings():
     return standings
 
 @app.route('/standings', methods=['GET'])
+@app.route('/')
+def home():
+    return "MLB API is running!", 200
+
 def get_standings():
     standings = fetch_mlb_standings()
     if standings:
