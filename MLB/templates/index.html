@@ -209,7 +209,7 @@
 
       async function loadData() {
           try {
-              let response = await fetch('https://mlb-project.onrender.com');
+              let response = await fetch('https://mlb-project.onrender.com/standings');
               standings = await response.json();
               if (standings.error) {
                   document.getElementById('result').innerText = "無法載入數據，請稍後再試。";
