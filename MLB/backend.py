@@ -33,6 +33,7 @@ def fetch_mlb_standings():
                 "STRK": team_record["streak"]["streakCode"]# 連勝/連敗
             }
     return standings
+application = app
 
 @app.route('/standings', methods=['GET'])
 @app.route('/')
