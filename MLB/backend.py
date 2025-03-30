@@ -1,6 +1,7 @@
 import requests
 import sys
 from flask import Flask, jsonify
+from flask import render_template
 from flask_cors import CORS  # 引入 CORS
 sys.stdout.reconfigure(encoding='utf-8')  
 
@@ -36,7 +37,7 @@ def fetch_mlb_standings():
 @app.route('/standings', methods=['GET'])
 @app.route('/')
 def home():
-    return "MLB API is running!", 200
+    return render_template('index.html')
 
 def get_standings():
     standings = fetch_mlb_standings()
